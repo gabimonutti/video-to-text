@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir, rm, readFile } from "fs/promises";
 import { exec } from "child_process";
 import path from "path";
-import { generateSRTContent } from "@/lib/utils";
+import { generateSRTContent, generateASSContent } from "@/lib/utils";
 import { v4 as uuidv4 } from "uuid";
 
 // Helper to promisify the exec function
@@ -54,39 +54,22 @@ export async function POST(req: NextRequest) {
     const videoArrayBuffer = await videoFile.arrayBuffer();
     await writeFile(videoPath, Buffer.from(videoArrayBuffer));
     
-    // 3. Generate SRT content from segments
+    // 3. Generate subtitle content
+    // First, generate SRT for backup/compatibility
     const srtContent = generateSRTContent(segments);
     const srtPath = path.join(tempDir, "subtitles.srt");
     await writeFile(srtPath, srtContent);
     
-    // 4. Prepare FFmpeg style parameters based on subtitleStyle
-    const fontName = subtitleStyle.fontFamily.split(",")[0].trim().replace(/'/g, "");
-    const fontSize = subtitleStyle.fontSize;
-    const primaryColor = subtitleStyle.color.replace("#", "&H");
-    const bgColor = subtitleStyle.backgroundColor.replace("#", "&H");
-    const opacity = Math.round(subtitleStyle.opacity * 255).toString(16).padStart(2, "0");
+    // Then generate ASS format for better styling control
+    const assContent = generateASSContent(segments, subtitleStyle);
+    const assPath = path.join(tempDir, "subtitles.ass");
+    await writeFile(assPath, assContent);
     
-    // Apply opacity to background color - FFmpeg expects AABBGGRR format for colors
-    const bgColorWithOpacity = "&H" + opacity + bgColor.substring(2);
-    
-    // Set alignment (1=left, 2=center, 3=right)
-    let alignment = "2";
-    if (subtitleStyle.alignment === "left") alignment = "1";
-    if (subtitleStyle.alignment === "right") alignment = "3";
-    
-    // Position (bottom or top)
-    const marginV = subtitleStyle.position === "bottom" ? "20" : "50";
-    
-    // Bold and italic
-    const bold = subtitleStyle.bold ? "1" : "0";
-    const italic = subtitleStyle.italic ? "1" : "0";
-    
-    // 5. Build FFmpeg command
+    // 4. Prepare output path
     const outputPath = path.join(tempDir, "output.mp4");
-    const styleParams = `FontName=${fontName},FontSize=${fontSize},PrimaryColour=${primaryColor},OutlineColour=${bgColorWithOpacity},Bold=${bold},Italic=${italic},Alignment=${alignment},MarginV=${marginV}`;
     
-    // Execute FFmpeg command
-    const ffmpegCommand = `ffmpeg -i "${videoPath}" -vf "subtitles='${srtPath}':force_style='${styleParams}'" -c:a copy "${outputPath}"`;
+    // Execute FFmpeg command with ASS subtitles for better styling
+    const ffmpegCommand = `ffmpeg -i "${videoPath}" -vf "ass='${assPath}'" -c:a copy "${outputPath}"`;
     
     console.log("Executing FFmpeg command:", ffmpegCommand);
     

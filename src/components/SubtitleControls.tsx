@@ -170,6 +170,19 @@ export function SubtitleControls({ style, onChange }: SubtitleControlsProps) {
                     } else {
                       handleChange('customPosition', false);
                       handleChange('position', value as 'top' | 'bottom');
+                      
+                      // Reset position to default when switching back from custom
+                      if (style.customPosition) {
+                        // When switching from custom to standard, reset X to center
+                        handleChange('xPosition', 50);
+                        
+                        // Reset Y based on selected position (top or bottom)
+                        if (value === 'top') {
+                          handleChange('yPosition', 10);
+                        } else {
+                          handleChange('yPosition', 90);
+                        }
+                      }
                     }
                   }}
                   className="w-full rounded-md border border-input px-3 py-2 text-sm"

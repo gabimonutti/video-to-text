@@ -40,6 +40,16 @@ export function VideoSubtitles({
     }
   }, [segments, currentTime, enabled]);
 
+  // Log subtitle style changes for debugging
+  useEffect(() => {
+    console.log('VideoSubtitles received style update:', {
+      customPosition: subtitleStyle.customPosition,
+      position: subtitleStyle.position,
+      xPosition: subtitleStyle.xPosition,
+      yPosition: subtitleStyle.yPosition,
+    });
+  }, [subtitleStyle.customPosition, subtitleStyle.position, subtitleStyle.xPosition, subtitleStyle.yPosition]);
+
   // Handle dragging for custom positioning
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!subtitleStyle.customPosition || !onStyleChange || !containerRef.current) return;
@@ -55,8 +65,6 @@ export function VideoSubtitles({
     const initialYPercent = subtitleStyle.yPosition;
     
     const handleMouseMoveLocal = (moveEvent: MouseEvent) => {
-      moveEvent.preventDefault();
-      
       const deltaX = moveEvent.clientX - initialMouseX;
       const deltaY = moveEvent.clientY - initialMouseY;
       
@@ -68,15 +76,11 @@ export function VideoSubtitles({
       const newXPercent = Math.min(100, Math.max(0, initialXPercent + deltaXPercent));
       const newYPercent = Math.min(100, Math.max(0, initialYPercent + deltaYPercent));
       
-      // Create a new style object to trigger a re-render
-      const newStyle = {
+      onStyleChange({
         ...subtitleStyle,
         xPosition: Math.round(newXPercent),
         yPosition: Math.round(newYPercent)
-      };
-      
-      // Update the parent component
-      onStyleChange(newStyle);
+      });
     };
     
     const handleMouseUpLocal = () => {
@@ -131,15 +135,11 @@ export function VideoSubtitles({
       const newXPercent = Math.min(100, Math.max(0, initialXPercent + deltaXPercent));
       const newYPercent = Math.min(100, Math.max(0, initialYPercent + deltaYPercent));
       
-      // Create a new style object to trigger a re-render
-      const newStyle = {
+      onStyleChange({
         ...subtitleStyle,
         xPosition: Math.round(newXPercent),
         yPosition: Math.round(newYPercent)
-      };
-      
-      // Update the parent component
-      onStyleChange(newStyle);
+      });
     };
     
     const handleTouchEndLocal = () => {
@@ -182,12 +182,22 @@ export function VideoSubtitles({
       cursor: isDragging ? 'grabbing' : 'grab'
     };
   } else {
-    positionStyle = {
-      position: 'absolute',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      [subtitleStyle.position]: '8%',
-    };
+    // For standard positions, use a more direct approach to ensure visibility
+    if (subtitleStyle.position === 'bottom') {
+      positionStyle = {
+        position: 'absolute',
+        left: '50%',
+        bottom: '40px', // Fixed distance from bottom
+        transform: 'translateX(-50%)',
+      };
+    } else { // top
+      positionStyle = {
+        position: 'absolute',
+        left: '50%',
+        top: '40px', // Fixed distance from top
+        transform: 'translateX(-50%)',
+      };
+    }
   }
 
   return (

@@ -262,11 +262,21 @@ export function VideoPlayer({
   
   // Handle subtitle style changes
   const handleSubtitleStyleChange = (newStyle: SubtitleStyle) => {
-    setLocalSubtitleStyle(newStyle);
+    // Log changes to help debug
+    console.log('VideoPlayer received new subtitle style:', {
+      customPosition: newStyle.customPosition,
+      position: newStyle.position,
+      xPosition: newStyle.xPosition,
+      yPosition: newStyle.yPosition,
+    });
+    
+    // Use a fresh object to ensure React detects the changes
+    const updatedStyle = { ...newStyle };
+    setLocalSubtitleStyle(updatedStyle);
     
     // Propagate changes to parent component if callback is provided
     if (onSubtitleStyleChange) {
-      onSubtitleStyleChange(newStyle);
+      onSubtitleStyleChange(updatedStyle);
     }
   };
   

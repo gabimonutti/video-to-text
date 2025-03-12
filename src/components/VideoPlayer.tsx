@@ -9,13 +9,15 @@ import {
   FiSkipBack, 
   FiSkipForward,
   FiType,
-  FiMinimize
+  FiMinimize,
+  FiDownload
 } from 'react-icons/fi';
 import { formatTime } from '@/lib/utils';
 import { Button } from './ui/button';
 import { VideoSubtitles } from './VideoSubtitles';
 import { TranscriptionSegment } from './TranscriptionDisplay';
 import { SubtitleStyle } from './SubtitleControls';
+import toast from 'react-hot-toast';
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -23,6 +25,7 @@ interface VideoPlayerProps {
   currentTime?: number;
   segments?: TranscriptionSegment[];
   subtitleStyle?: SubtitleStyle;
+  videoFile?: File | null;
 }
 
 const defaultSubtitleStyle: SubtitleStyle = {
@@ -42,7 +45,8 @@ export function VideoPlayer({
   onProgress, 
   currentTime,
   segments = [],
-  subtitleStyle = defaultSubtitleStyle
+  subtitleStyle = defaultSubtitleStyle,
+  videoFile = null
 }: VideoPlayerProps) {
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
@@ -53,6 +57,7 @@ export function VideoPlayer({
   const [seeking, setSeeking] = useState(false);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isProcessingDownload, setIsProcessingDownload] = useState(false);
   
   const playerRef = useRef<ReactPlayer>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -179,6 +184,68 @@ export function VideoPlayer({
   const toggleSubtitles = () => {
     setSubtitlesEnabled(!subtitlesEnabled);
   };
+
+  const downloadVideoWithCaptions = async () => {
+    if (!videoFile || segments.length === 0) {
+      toast.error("Video file or transcription segments not available");
+      return;
+    }
+
+    setIsProcessingDownload(true);
+    toast.loading("Processing video with captions...", { id: "download-video" });
+
+    try {
+      // Create a form with the video file and subtitle information
+      const formData = new FormData();
+      formData.append("videoFile", videoFile);
+      
+      // Convert subtitle style and segments to JSON and append to form
+      formData.append("subtitleStyle", JSON.stringify(subtitleStyle));
+      formData.append("segments", JSON.stringify(segments));
+      formData.append("subtitlesEnabled", String(subtitlesEnabled));
+      
+      // Send request to server endpoint
+      const response = await fetch("/api/render-video", {
+        method: "POST",
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to process video");
+      }
+      
+      // Get the video blob from response
+      const videoBlob = await response.blob();
+      
+      // Create download link
+      const url = URL.createObjectURL(videoBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `video-with-captions.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+      
+      toast.success("Video with captions downloaded successfully", { id: "download-video" });
+    } catch (error: any) {
+      console.error("Error downloading video with captions:", error);
+      
+      if (error.message.includes("not implemented")) {
+        toast.error(
+          "This feature requires server-side implementation with FFmpeg. Download subtitles separately for now.",
+          { id: "download-video", duration: 5000 }
+        );
+      } else {
+        toast.error(`Error: ${error.message || "Failed to process video"}`, { id: "download-video" });
+      }
+    } finally {
+      setIsProcessingDownload(false);
+    }
+  };
   
   return (
     <div 
@@ -247,7 +314,7 @@ export function VideoPlayer({
         </div>
         
         {/* Controls */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center space-x-2">
             <Button 
               variant="ghost" 
@@ -317,6 +384,22 @@ export function VideoPlayer({
             </Button>
           </div>
         </div>
+
+        {/* Download button */}
+        {segments.length > 0 && videoFile && (
+          <div className="mt-4 flex justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+              onClick={downloadVideoWithCaptions}
+              disabled={isProcessingDownload}
+            >
+              <FiDownload className="h-4 w-4" />
+              {isProcessingDownload ? "Processing..." : "Download Video with Captions"}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-import { formatTime } from '@/lib/utils';
+import { formatTime, generateSRTContent, generateVTTContent, downloadBlob } from '@/lib/utils';
 import { FiDownload, FiEdit2, FiSave, FiX } from 'react-icons/fi';
 
 export interface TranscriptionSegment {
@@ -74,53 +74,16 @@ export function TranscriptionDisplay({
         break;
         
       case 'srt':
-        content = editedSegments.map((segment, index) => {
-          const formatSRTTime = (seconds: number) => {
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            const secs = Math.floor(seconds % 60);
-            const ms = Math.floor((seconds % 1) * 1000);
-            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
-          };
-          
-          return `${index + 1}
-${formatSRTTime(segment.start)} --> ${formatSRTTime(segment.end)}
-${segment.text}
-`;
-        }).join('\n');
+        content = generateSRTContent(editedSegments);
         break;
         
       case 'vtt':
-        content = `WEBVTT
-
-${editedSegments.map((segment) => {
-  const formatVTTTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    const ms = Math.floor((seconds % 1) * 1000);
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
-  };
-  
-  return `${formatVTTTime(segment.start)} --> ${formatVTTTime(segment.end)}
-${segment.text}
-`;
-}).join('\n')}`;
+        content = generateVTTContent(editedSegments);
         break;
     }
     
-    // Create a blob and initiate download
-    const blob = new Blob([content], { type: contentType });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    
-    URL.revokeObjectURL(url);
-    document.body.removeChild(link);
+    // Download the content
+    downloadBlob(content, filename, contentType);
   };
   
   return (

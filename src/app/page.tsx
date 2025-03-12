@@ -93,6 +93,7 @@ export default function Home() {
           currentTime={currentTime}
           segments={activeSegments}
           subtitleStyle={subtitleStyle}
+          videoFile={videoFile}
         />
       )}
       

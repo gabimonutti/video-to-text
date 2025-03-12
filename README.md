@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Video to Text
+
+A Next.js application that allows you to upload videos and extract text content through transcription, translation, and more.
+
+## Features
+
+- 🎥 **Video Upload**: Support for various video formats (MP4, WEBM, MOV)
+- 🎙️ **Automatic Transcription**: Generate accurate text transcriptions from video audio
+- 🔤 **Subtitle Generation**: Export transcriptions as SRT or VTT subtitle files
+- 🌐 **Translation**: Translate transcriptions to multiple languages
+- ✏️ **Edit Transcriptions**: Modify and correct generated text
+- 🎯 **Interactive Timeline**: Click on transcription segments to jump to specific points in the video
+
+## Technology Stack
+
+- **Next.js 15**: React framework with App Router
+- **TypeScript**: Type-safe code
+- **Tailwind CSS**: Styling and theme support
+- **OpenAI Whisper API**: Audio transcription
+- **OpenAI GPT API**: Translation services
+- **React Player**: Video playback and controls
+- **React Dropzone**: Drag-and-drop file uploads
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js 18.0 or higher
+- An OpenAI API key
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd video-to-text
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-## Learn More
+3. Set up environment variables:
+   - Copy `.env.local.example` to `.env.local`
+   - Add your OpenAI API key to `.env.local`
 
-To learn more about Next.js, take a look at the following resources:
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Usage
 
-## Deploy on Vercel
+### Uploading a Video
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Drag & drop a video file or use the file browser
+2. Wait for the upload to complete
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Generating Transcription
+
+1. Select the language of the video content
+2. Click "Start Processing"
+3. Wait for the extraction and transcription process to complete
+
+### Editing Transcription
+
+1. Click the edit icon next to any segment
+2. Make your changes
+3. Click "Save" to update the transcription
+
+### Translating Content
+
+1. Select the target language from the dropdown
+2. Click "Translate"
+3. Toggle between original and translated versions using the view switcher
+
+### Exporting
+
+Use the export buttons to download the transcription as:
+- Plain text (.txt)
+- SubRip Subtitle format (.srt)
+- WebVTT format (.vtt)
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- OpenAI for their Whisper and GPT APIs
+- React Player contributors
+- Next.js team for the framework
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

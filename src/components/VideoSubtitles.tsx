@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { TranscriptionSegment } from './TranscriptionDisplay';
 import { SubtitleStyle } from './SubtitleControls';
 
@@ -7,15 +7,20 @@ interface VideoSubtitlesProps {
   currentTime: number;
   subtitleStyle: SubtitleStyle;
   enabled: boolean;
+  onStyleChange?: (style: SubtitleStyle) => void; // Callback for style changes (position)
 }
 
 export function VideoSubtitles({ 
   segments, 
   currentTime, 
   subtitleStyle,
-  enabled = true
+  enabled = true,
+  onStyleChange
 }: VideoSubtitlesProps) {
   const [activeSegment, setActiveSegment] = useState<TranscriptionSegment | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const subtitleRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Update active segment based on currentTime
   useEffect(() => {
@@ -35,6 +40,127 @@ export function VideoSubtitles({
     }
   }, [segments, currentTime, enabled]);
 
+  // Handle dragging for custom positioning
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!subtitleStyle.customPosition || !onStyleChange || !containerRef.current) return;
+    
+    e.preventDefault();
+    setIsDragging(true);
+    
+    const initialMouseX = e.clientX;
+    const initialMouseY = e.clientY;
+    
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const initialXPercent = subtitleStyle.xPosition;
+    const initialYPercent = subtitleStyle.yPosition;
+    
+    const handleMouseMoveLocal = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault();
+      
+      const deltaX = moveEvent.clientX - initialMouseX;
+      const deltaY = moveEvent.clientY - initialMouseY;
+      
+      // Convert pixel change to percentage change
+      const deltaXPercent = (deltaX / containerRect.width) * 100;
+      const deltaYPercent = (deltaY / containerRect.height) * 100;
+      
+      // Apply the change to the initial position
+      const newXPercent = Math.min(100, Math.max(0, initialXPercent + deltaXPercent));
+      const newYPercent = Math.min(100, Math.max(0, initialYPercent + deltaYPercent));
+      
+      // Create a new style object to trigger a re-render
+      const newStyle = {
+        ...subtitleStyle,
+        xPosition: Math.round(newXPercent),
+        yPosition: Math.round(newYPercent)
+      };
+      
+      // Update the parent component
+      onStyleChange(newStyle);
+    };
+    
+    const handleMouseUpLocal = () => {
+      setIsDragging(false);
+      document.removeEventListener('mousemove', handleMouseMoveLocal);
+      document.removeEventListener('mouseup', handleMouseUpLocal);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMoveLocal);
+    document.addEventListener('mouseup', handleMouseUpLocal);
+  };
+  
+  // Get rid of the previous global handlers that aren't being used correctly
+  const handleMouseMove = (e: MouseEvent) => {
+    // This is now handled in the local closure inside handleMouseDown
+  };
+  
+  const handleMouseUp = () => {
+    // This is now handled in the local closure inside handleMouseDown
+  };
+
+  // Handle touch events for mobile with the same approach
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!subtitleStyle.customPosition || !onStyleChange || !containerRef.current) return;
+    
+    if (e.touches.length !== 1) return;
+    e.preventDefault();
+    
+    setIsDragging(true);
+    
+    const touch = e.touches[0];
+    const initialTouchX = touch.clientX;
+    const initialTouchY = touch.clientY;
+    
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const initialXPercent = subtitleStyle.xPosition;
+    const initialYPercent = subtitleStyle.yPosition;
+    
+    const handleTouchMoveLocal = (moveEvent: TouchEvent) => {
+      if (moveEvent.touches.length !== 1) return;
+      moveEvent.preventDefault();
+      
+      const moveTouch = moveEvent.touches[0];
+      const deltaX = moveTouch.clientX - initialTouchX;
+      const deltaY = moveTouch.clientY - initialTouchY;
+      
+      // Convert pixel change to percentage change
+      const deltaXPercent = (deltaX / containerRect.width) * 100;
+      const deltaYPercent = (deltaY / containerRect.height) * 100;
+      
+      // Apply the change to the initial position
+      const newXPercent = Math.min(100, Math.max(0, initialXPercent + deltaXPercent));
+      const newYPercent = Math.min(100, Math.max(0, initialYPercent + deltaYPercent));
+      
+      // Create a new style object to trigger a re-render
+      const newStyle = {
+        ...subtitleStyle,
+        xPosition: Math.round(newXPercent),
+        yPosition: Math.round(newYPercent)
+      };
+      
+      // Update the parent component
+      onStyleChange(newStyle);
+    };
+    
+    const handleTouchEndLocal = () => {
+      setIsDragging(false);
+      document.removeEventListener('touchmove', handleTouchMoveLocal, { capture: true } as EventListenerOptions);
+      document.removeEventListener('touchend', handleTouchEndLocal);
+    };
+    
+    document.addEventListener('touchmove', handleTouchMoveLocal, { passive: false, capture: true } as EventListenerOptions);
+    document.addEventListener('touchend', handleTouchEndLocal);
+  };
+  
+  // Get rid of the previous global handlers
+  const handleTouchMove = (e: TouchEvent) => {
+    // This is now handled in the local closure inside handleTouchStart
+  };
+  
+  const handleTouchEnd = () => {
+    // This is now handled in the local closure inside handleTouchStart
+  };
+
   if (!activeSegment || !enabled) {
     return null;
   }
@@ -44,16 +170,38 @@ export function VideoSubtitles({
     .toString(16)
     .padStart(2, '0');
 
+  // Position based on whether we're using custom positioning or not
+  let positionStyle = {};
+  
+  if (subtitleStyle.customPosition) {
+    positionStyle = {
+      position: 'absolute',
+      left: `${subtitleStyle.xPosition}%`,
+      top: `${subtitleStyle.yPosition}%`,
+      transform: 'translate(-50%, -50%)',
+      cursor: isDragging ? 'grabbing' : 'grab'
+    };
+  } else {
+    positionStyle = {
+      position: 'absolute',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      [subtitleStyle.position]: '8%',
+    };
+  }
+
   return (
     <div 
-      className={`absolute left-0 right-0 px-4 py-2 flex justify-center ${
-        subtitleStyle.position === 'bottom' ? 'bottom-8' : 'top-8'
-      }`}
+      ref={containerRef}
+      className="absolute inset-0 overflow-hidden"
+      style={{ pointerEvents: subtitleStyle.customPosition ? 'auto' : 'none' }}
     >
       <div
+        ref={subtitleRef}
         style={{
+          ...positionStyle,
           color: subtitleStyle.color,
-          backgroundColor: `${subtitleStyle.backgroundColor}${opacityHex}`,
+          backgroundColor: subtitleStyle.noBackground ? 'transparent' : `${subtitleStyle.backgroundColor}${opacityHex}`,
           fontFamily: subtitleStyle.fontFamily,
           fontSize: `${subtitleStyle.fontSize}px`,
           fontWeight: subtitleStyle.bold ? 'bold' : 'normal',
@@ -62,9 +210,33 @@ export function VideoSubtitles({
           padding: '4px 12px',
           borderRadius: '4px',
           maxWidth: '80%',
-          textShadow: subtitleStyle.backgroundColor === 'transparent' ? '0px 0px 2px rgba(0, 0, 0, 0.8)' : 'none',
+          textShadow: subtitleStyle.noBackground ? '0px 0px 2px rgba(0, 0, 0, 0.8)' : 'none',
+          userSelect: 'none',
+          zIndex: 10,
+          border: subtitleStyle.customPosition ? '1px dashed rgba(255, 255, 255, 0.5)' : 'none',
+          position: 'relative',
         }}
+        onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
+        title={subtitleStyle.customPosition ? "Drag to reposition" : ""}
       >
+        {subtitleStyle.customPosition && (
+          <div 
+            style={{
+              position: 'absolute',
+              top: '-15px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: '12px',
+              color: 'white',
+              opacity: isDragging ? 1 : 0.7,
+              transition: 'opacity 0.2s',
+              pointerEvents: 'none',
+            }}
+          >
+            ⋮⋮
+          </div>
+        )}
         {activeSegment.text}
       </div>
     </div>

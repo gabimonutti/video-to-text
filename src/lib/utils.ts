@@ -95,27 +95,42 @@ export function generateASSContent(segments: TranscriptionSegment[], style: Subt
   
   // Calculate opacity hex (00 = fully opaque, FF = fully transparent in ASS)
   // For the background we need to use the opacity provided
-  const bgAlphaHex = Math.round((1 - style.opacity) * 255)
-    .toString(16)
-    .padStart(2, "0")
-    .toUpperCase();
+  const bgAlphaHex = style.noBackground 
+    ? "FF" // Fully transparent when noBackground is true
+    : Math.round((1 - style.opacity) * 255)
+        .toString(16)
+        .padStart(2, "0")
+        .toUpperCase();
   
   // Define colors in ASS format
   const textColor = convertColorToASS(style.color); // Text color (fully opaque)
   const outlineColor = convertColorToASS(style.backgroundColor); // Outline color (fully opaque)
   const shadowColor = convertColorToASS(style.backgroundColor, bgAlphaHex); // Shadow color (with opacity)
   
+  // Define video dimensions for positioning
+  // These should match the values in the [Script Info] section
+  const videoWidth = 1280; 
+  const videoHeight = 720;
+  
   // Set alignment (1=bottom left, 2=bottom center, 3=bottom right)
   // In ASS, 1-3 is bottom, 4-6 is middle, 7-9 is top
   let alignment = "2"; // Default bottom center
-  if (style.alignment === "left") alignment = "1"; // Bottom left
-  if (style.alignment === "right") alignment = "3"; // Bottom right
   
-  // If position is top, adjust alignment (7=top left, 8=top center, 9=top right)
-  if (style.position === "top") {
-    if (alignment === "1") alignment = "7"; // Top left
-    else if (alignment === "2") alignment = "8"; // Top center
-    else if (alignment === "3") alignment = "9"; // Top right
+  // Only set alignment based on style.alignment if not using custom position
+  if (!style.customPosition) {
+    if (style.alignment === "left") alignment = "1"; // Bottom left
+    if (style.alignment === "right") alignment = "3"; // Bottom right
+    
+    // If position is top, adjust alignment (7=top left, 8=top center, 9=top right)
+    if (style.position === "top") {
+      if (alignment === "1") alignment = "7"; // Top left
+      else if (alignment === "2") alignment = "8"; // Top center
+      else if (alignment === "3") alignment = "9"; // Top right
+    }
+  } else {
+    // For custom positioning, we use centered alignment (2)
+    // The actual position will be set with \pos tag
+    alignment = "2";
   }
   
   // Bold and italic
@@ -130,21 +145,33 @@ export function generateASSContent(segments: TranscriptionSegment[], style: Subt
   // BorderStyle=3 gives us a box around the text (opaque box with outline)
   // Outline is the size of the box padding in pixels
   // Shadow is a drop shadow distance
-  const outlineSize = Math.max(1, Math.round(fontSize * 0.075)); // Padding around text
+  const outlineSize = style.noBackground 
+    ? "1" // Small outline for text-only
+    : Math.max(1, Math.round(fontSize * 0.075)).toString(); // Padding around text
+    
+  // Set border style based on whether background is enabled
+  const borderStyle = style.noBackground ? "1" : "3"; // 1=outline, 3=opaque box
+  
+  // For text-only mode, add a small shadow
+  const shadowSize = style.noBackground ? "1" : "0";
+  
+  // Calculate margins based on positioning
+  // For custom positioning, these will be overridden by \pos tag
+  const marginV = style.position === "bottom" ? "20" : "50";
   
   // Build ASS header with styles
   // The key to good backgrounds is using BorderStyle=3 (opaque box)
   // and setting the correct BackColour and OutlineColour
   const header = `[Script Info]
 ScriptType: v4.00+
-PlayResX: 1280
-PlayResY: 720
+PlayResX: ${videoWidth}
+PlayResY: ${videoHeight}
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 ; Style with a CSS-like box background
-Style: Default,${fontName},${fontSize},${textColor},${textColor},${outlineColor},${shadowColor},${bold},${italic},0,0,100,100,0,0,3,${outlineSize},0,${alignment},10,10,20,1
+Style: Default,${fontName},${fontSize},${textColor},${textColor},${outlineColor},${shadowColor},${bold},${italic},0,0,100,100,0,0,${borderStyle},${outlineSize},${shadowSize},${alignment},10,10,${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -160,8 +187,35 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       .replace(/\r?\n|\r/g, ' ')
       .trim();
     
-    // Use the style defined above without overrides
-    return `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${cleanText}`;
+    // Custom style overrides for each subtitle
+    const styleOverrides = [];
+    
+    // Add shadow for text-only mode
+    if (style.noBackground) {
+      styleOverrides.push("\\shad1");
+    }
+    
+    // For custom positioning, use \pos(x,y) to place the text at exact coordinates
+    if (style.customPosition) {
+      // Calculate position in pixels based on the percentage and video dimensions
+      const xPos = Math.round((style.xPosition / 100) * videoWidth);
+      const yPos = Math.round((style.yPosition / 100) * videoHeight);
+      
+      // Add positioning override
+      styleOverrides.push(`\\pos(${xPos},${yPos})`);
+      
+      // For custom positioned subtitles, we also add an alignment override
+      // to ensure text is properly centered at the custom position
+      styleOverrides.push("\\an5"); // 5 = centered both horizontally and vertically
+    }
+    
+    // Build the style override string
+    const styleOverrideString = styleOverrides.length > 0 
+      ? `{${styleOverrides.join("")}}` 
+      : '';
+    
+    // Use the style defined above with optional overrides
+    return `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${styleOverrideString}${cleanText}`;
   }).join('\n');
 
   return header + events;

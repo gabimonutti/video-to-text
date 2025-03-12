@@ -29,6 +29,10 @@ export default function Home() {
     italic: false,
     alignment: 'center',
     position: 'bottom',
+    noBackground: false,
+    customPosition: false,
+    xPosition: 50, // Center horizontally by default
+    yPosition: 90, // Near bottom by default
   });
   
   const handleVideoUploaded = (file: File) => {
@@ -70,6 +74,16 @@ export default function Home() {
     }
   };
   
+  // Add a handler for subtitle style changes
+  const handleSubtitleStyleChange = (newStyle: SubtitleStyle) => {
+    console.log('Subtitle style updated:', {
+      xPosition: newStyle.xPosition,
+      yPosition: newStyle.yPosition,
+      customPosition: newStyle.customPosition
+    });
+    setSubtitleStyle(newStyle);
+  };
+  
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-8 max-w-5xl mx-auto">
       <header className="w-full flex items-center justify-between mb-8">
@@ -94,6 +108,7 @@ export default function Home() {
           segments={activeSegments}
           subtitleStyle={subtitleStyle}
           videoFile={videoFile}
+          onSubtitleStyleChange={handleSubtitleStyleChange}
         />
       )}
       
@@ -131,7 +146,7 @@ export default function Home() {
           {showSubtitleControls && (
             <SubtitleControls 
               style={subtitleStyle}
-              onChange={setSubtitleStyle}
+              onChange={handleSubtitleStyleChange}
             />
           )}
           

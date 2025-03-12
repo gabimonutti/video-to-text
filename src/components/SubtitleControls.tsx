@@ -16,6 +16,10 @@ export interface SubtitleStyle {
   italic: boolean;
   alignment: 'left' | 'center' | 'right';
   position: 'top' | 'bottom';
+  noBackground: boolean;
+  customPosition: boolean;
+  xPosition: number;
+  yPosition: number;
 }
 
 interface SubtitleControlsProps {
@@ -108,6 +112,7 @@ export function SubtitleControls({ style, onChange }: SubtitleControlsProps) {
                   value={style.backgroundColor}
                   onChange={(e) => handleChange('backgroundColor', e.target.value)}
                   className="w-12 h-8 p-1"
+                  disabled={style.noBackground}
                 />
                 <Input
                   type="text"
@@ -115,6 +120,7 @@ export function SubtitleControls({ style, onChange }: SubtitleControlsProps) {
                   onChange={(e) => handleChange('backgroundColor', e.target.value)}
                   className="flex-1"
                   placeholder="#000000"
+                  disabled={style.noBackground}
                 />
               </div>
             </div>
@@ -132,21 +138,88 @@ export function SubtitleControls({ style, onChange }: SubtitleControlsProps) {
                 step={0.05}
                 value={[style.opacity]}
                 onValueChange={(values) => handleChange('opacity', values[0])}
+                disabled={style.noBackground}
               />
+            </div>
+
+            {/* No Background Option */}
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="no-background"
+                  checked={style.noBackground}
+                  onChange={(e) => handleChange('noBackground', e.target.checked)}
+                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="no-background">No Background (Text Only)</Label>
+              </div>
             </div>
 
             {/* Position */}
             <div className="space-y-2">
               <Label htmlFor="position">Position</Label>
-              <select
-                id="position"
-                value={style.position}
-                onChange={(e) => handleChange('position', e.target.value as 'top' | 'bottom')}
-                className="w-full rounded-md border border-input px-3 py-2 text-sm"
-              >
-                <option value="bottom">Bottom</option>
-                <option value="top">Top</option>
-              </select>
+              <div className="flex flex-col space-y-2">
+                <select
+                  id="position"
+                  value={style.customPosition ? 'custom' : style.position}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === 'custom') {
+                      handleChange('customPosition', true);
+                    } else {
+                      handleChange('customPosition', false);
+                      handleChange('position', value as 'top' | 'bottom');
+                    }
+                  }}
+                  className="w-full rounded-md border border-input px-3 py-2 text-sm"
+                >
+                  <option value="bottom">Bottom</option>
+                  <option value="top">Top</option>
+                  <option value="custom">Custom Position</option>
+                </select>
+                
+                {style.customPosition && (
+                  <>
+                    <div className="text-xs text-muted-foreground mb-1 italic">
+                      Tip: You can directly drag the subtitle text in the video to reposition it.
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                      {/* X Position */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label htmlFor="x-position">X Position</Label>
+                          <span className="text-sm text-muted-foreground">{style.xPosition}%</span>
+                        </div>
+                        <Slider
+                          id="x-position"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={[style.xPosition]}
+                          onValueChange={(values) => handleChange('xPosition', values[0])}
+                        />
+                      </div>
+                      
+                      {/* Y Position */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label htmlFor="y-position">Y Position</Label>
+                          <span className="text-sm text-muted-foreground">{style.yPosition}%</span>
+                        </div>
+                        <Slider
+                          id="y-position"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={[style.yPosition]}
+                          onValueChange={(values) => handleChange('yPosition', values[0])}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -207,7 +280,7 @@ export function SubtitleControls({ style, onChange }: SubtitleControlsProps) {
               <div 
                 style={{
                   color: style.color,
-                  backgroundColor: `${style.backgroundColor}${Math.round(style.opacity * 255).toString(16).padStart(2, '0')}`,
+                  backgroundColor: style.noBackground ? 'transparent' : `${style.backgroundColor}${Math.round(style.opacity * 255).toString(16).padStart(2, '0')}`,
                   fontFamily: style.fontFamily,
                   fontSize: `${style.fontSize}px`,
                   fontWeight: style.bold ? 'bold' : 'normal',
@@ -216,6 +289,7 @@ export function SubtitleControls({ style, onChange }: SubtitleControlsProps) {
                   padding: '4px 8px',
                   borderRadius: '4px',
                   maxWidth: '100%',
+                  textShadow: style.noBackground ? '0px 0px 2px rgba(0, 0, 0, 0.8)' : 'none',
                 }}
               >
                 Sample subtitle text

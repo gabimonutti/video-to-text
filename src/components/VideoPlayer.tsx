@@ -26,6 +26,7 @@ interface VideoPlayerProps {
   segments?: TranscriptionSegment[];
   subtitleStyle?: SubtitleStyle;
   videoFile?: File | null;
+  onSubtitleStyleChange?: (style: SubtitleStyle) => void;
 }
 
 const defaultSubtitleStyle: SubtitleStyle = {
@@ -38,6 +39,10 @@ const defaultSubtitleStyle: SubtitleStyle = {
   italic: false,
   alignment: 'center',
   position: 'bottom',
+  noBackground: false,
+  customPosition: false,
+  xPosition: 50, // Center horizontally by default
+  yPosition: 90, // Near bottom by default
 };
 
 export function VideoPlayer({ 
@@ -46,7 +51,8 @@ export function VideoPlayer({
   currentTime,
   segments = [],
   subtitleStyle = defaultSubtitleStyle,
-  videoFile = null
+  videoFile = null,
+  onSubtitleStyleChange
 }: VideoPlayerProps) {
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
@@ -58,9 +64,15 @@ export function VideoPlayer({
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isProcessingDownload, setIsProcessingDownload] = useState(false);
+  const [localSubtitleStyle, setLocalSubtitleStyle] = useState(subtitleStyle);
   
   const playerRef = useRef<ReactPlayer>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Update local subtitle style when prop changes
+  useEffect(() => {
+    setLocalSubtitleStyle(subtitleStyle);
+  }, [subtitleStyle]);
   
   // Use external currentTime if provided
   useEffect(() => {
@@ -200,7 +212,7 @@ export function VideoPlayer({
       formData.append("videoFile", videoFile);
       
       // Convert subtitle style and segments to JSON and append to form
-      formData.append("subtitleStyle", JSON.stringify(subtitleStyle));
+      formData.append("subtitleStyle", JSON.stringify(localSubtitleStyle));
       formData.append("segments", JSON.stringify(segments));
       formData.append("subtitlesEnabled", String(subtitlesEnabled));
       
@@ -231,19 +243,30 @@ export function VideoPlayer({
       document.body.removeChild(link);
       
       toast.success("Video with captions downloaded successfully", { id: "download-video" });
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       console.error("Error downloading video with captions:", error);
       
-      if (error.message.includes("not implemented")) {
+      if (error instanceof Error && error.message.includes("not implemented")) {
         toast.error(
           "This feature requires server-side implementation with FFmpeg. Download subtitles separately for now.",
           { id: "download-video", duration: 5000 }
         );
       } else {
-        toast.error(`Error: ${error.message || "Failed to process video"}`, { id: "download-video" });
+        const errorMessage = error instanceof Error ? error.message : "Failed to process video";
+        toast.error(`Error: ${errorMessage}`, { id: "download-video" });
       }
     } finally {
       setIsProcessingDownload(false);
+    }
+  };
+  
+  // Handle subtitle style changes
+  const handleSubtitleStyleChange = (newStyle: SubtitleStyle) => {
+    setLocalSubtitleStyle(newStyle);
+    
+    // Propagate changes to parent component if callback is provided
+    if (onSubtitleStyleChange) {
+      onSubtitleStyleChange(newStyle);
     }
   };
   
@@ -266,12 +289,13 @@ export function VideoPlayer({
           className="react-player"
           progressInterval={100}
         />
-        {segments && segments.length > 0 && (
+        {subtitlesEnabled && (
           <VideoSubtitles
             segments={segments}
             currentTime={playedSeconds}
-            subtitleStyle={subtitleStyle}
-            enabled={subtitlesEnabled}
+            subtitleStyle={localSubtitleStyle}
+            enabled={true}
+            onStyleChange={handleSubtitleStyleChange}
           />
         )}
 

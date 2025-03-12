@@ -94,22 +94,29 @@ export function generateASSContent(segments: TranscriptionSegment[], style: Subt
   };
   
   // Calculate opacity hex (00 = fully opaque, FF = fully transparent in ASS)
-  const alphaHex = Math.round((1 - style.opacity) * 255)
+  // For the background we need to use the opacity provided
+  const bgAlphaHex = Math.round((1 - style.opacity) * 255)
     .toString(16)
     .padStart(2, "0")
     .toUpperCase();
   
   // Define colors in ASS format
-  const primaryColor = convertColorToASS(style.color);
-  const bgColor = convertColorToASS(style.backgroundColor, alphaHex);
+  const textColor = convertColorToASS(style.color); // Text color (fully opaque)
+  const outlineColor = convertColorToASS(style.backgroundColor); // Outline color (fully opaque)
+  const shadowColor = convertColorToASS(style.backgroundColor, bgAlphaHex); // Shadow color (with opacity)
   
   // Set alignment (1=bottom left, 2=bottom center, 3=bottom right)
-  let alignment = "2";
-  if (style.alignment === "left") alignment = "1";
-  if (style.alignment === "right") alignment = "3";
+  // In ASS, 1-3 is bottom, 4-6 is middle, 7-9 is top
+  let alignment = "2"; // Default bottom center
+  if (style.alignment === "left") alignment = "1"; // Bottom left
+  if (style.alignment === "right") alignment = "3"; // Bottom right
   
-  // Adjust vertical position
-  const marginV = style.position === "bottom" ? "20" : "50";
+  // If position is top, adjust alignment (7=top left, 8=top center, 9=top right)
+  if (style.position === "top") {
+    if (alignment === "1") alignment = "7"; // Top left
+    else if (alignment === "2") alignment = "8"; // Top center
+    else if (alignment === "3") alignment = "9"; // Top right
+  }
   
   // Bold and italic
   const bold = style.bold ? "1" : "0";
@@ -119,7 +126,15 @@ export function generateASSContent(segments: TranscriptionSegment[], style: Subt
   const fontName = style.fontFamily.split(",")[0].trim().replace(/'/g, "");
   const fontSize = style.fontSize;
   
-  // Build ASS header
+  // Calculate padding for the background effect
+  // BorderStyle=3 gives us a box around the text (opaque box with outline)
+  // Outline is the size of the box padding in pixels
+  // Shadow is a drop shadow distance
+  const outlineSize = Math.max(1, Math.round(fontSize * 0.075)); // Padding around text
+  
+  // Build ASS header with styles
+  // The key to good backgrounds is using BorderStyle=3 (opaque box)
+  // and setting the correct BackColour and OutlineColour
   const header = `[Script Info]
 ScriptType: v4.00+
 PlayResX: 1280
@@ -128,7 +143,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontName},${fontSize},${primaryColor},&H00FFFFFF,&H00000000,${bgColor},${bold},${italic},0,0,100,100,0,0,1,0,0,${alignment},10,10,${marginV},1
+; Style with a CSS-like box background
+Style: Default,${fontName},${fontSize},${textColor},${textColor},${outlineColor},${shadowColor},${bold},${italic},0,0,100,100,0,0,3,${outlineSize},0,${alignment},10,10,20,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -138,11 +154,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   const events = segments.map(segment => {
     const startTime = formatASSTime(segment.start);
     const endTime = formatASSTime(segment.end);
+    
     // Clean the text to ensure compatibility
     const cleanText = segment.text
       .replace(/\r?\n|\r/g, ' ')
       .trim();
     
+    // Use the style defined above without overrides
     return `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${cleanText}`;
   }).join('\n');
 

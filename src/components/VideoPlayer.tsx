@@ -425,12 +425,21 @@ export function VideoPlayer({
             <Button
               variant="outline"
               size="sm"
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 relative"
               onClick={downloadVideoWithCaptions}
               disabled={isProcessingDownload}
             >
-              <FiDownload className="h-4 w-4" />
-              {isProcessingDownload ? "Processing..." : "Download Video with Captions"}
+              {isProcessingDownload ? (
+                <>
+                  <div className="animate-spin h-4 w-4 border-2 border-foreground border-t-transparent rounded-full mr-2" />
+                  Processing Video...
+                </>
+              ) : (
+                <>
+                  <FiDownload className="h-4 w-4" />
+                  Download Video with Captions
+                </>
+              )}
             </Button>
           </div>
         )}

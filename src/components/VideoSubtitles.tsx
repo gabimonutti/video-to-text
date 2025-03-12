@@ -188,6 +188,7 @@ export function VideoSubtitles({
         position: 'absolute',
         left: '50%',
         bottom: '40px', // Fixed distance from bottom
+        top: 'auto', // Explicitly override any top value
         transform: 'translateX(-50%)',
       };
     } else { // top
@@ -195,6 +196,7 @@ export function VideoSubtitles({
         position: 'absolute',
         left: '50%',
         top: '40px', // Fixed distance from top
+        bottom: 'auto', // Explicitly override any bottom value
         transform: 'translateX(-50%)',
       };
     }
@@ -224,7 +226,6 @@ export function VideoSubtitles({
           userSelect: 'none',
           zIndex: 10,
           border: subtitleStyle.customPosition ? '1px dashed rgba(255, 255, 255, 0.5)' : 'none',
-          position: 'relative',
         }}
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}

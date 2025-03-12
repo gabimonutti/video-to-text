@@ -241,12 +241,18 @@ export function TranscriptionProcessor({
     setErrorMessage(null);
     
     try {
-      // Send the video file directly to the API without preprocessing
-      toast.loading('Processing video...', { id: 'processing' });
+      // Initial toast with infinite duration
+      toast.loading('Transcribing video...', { 
+        id: 'processing',
+        duration: Infinity, // Keep the toast until we dismiss it
+      });
       
       // Create FormData for the API
       const formData = new FormData();
       formData.append('file', videoFile);
+      
+      // Track upload progress phase
+      let uploadComplete = false;
       
       // Send directly to the API - no extraction needed
       const response = await axios.post('/api/transcribe', formData, {
@@ -256,10 +262,53 @@ export function TranscriptionProcessor({
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setProgress(percentCompleted);
+            // Only show upload progress up to 50% of the total progress
+            // Reserve the other 50% for processing
+            setProgress(Math.floor(percentCompleted / 2));
+            
+            // Update the toast message with progress
+            if (percentCompleted % 10 === 0) { // Only update every 10% to avoid too many updates
+              toast.loading(`Transcribing video... ${percentCompleted}% uploaded`, { id: 'processing' });
+            }
+            
+            // Mark when upload is complete
+            if (percentCompleted >= 100) {
+              uploadComplete = true;
+              toast.loading('Processing audio with OpenAI Whisper... (this may take a few minutes)', { id: 'processing' });
+              
+              // Start a progress simulation for the processing phase
+              let processingProgress = 0;
+              const processingInterval = setInterval(() => {
+                processingProgress += 1;
+                // Cap at 98% to show it's still processing
+                if (processingProgress <= 48) {
+                  setProgress(50 + processingProgress); // Add to the 50% from upload phase
+                  
+                  // Update the toast occasionally
+                  if (processingProgress % 10 === 0) {
+                    toast.loading(`Processing audio with OpenAI Whisper... (${Math.round((50 + processingProgress) / 50 * 100)}%)`, 
+                      { id: 'processing' });
+                  }
+                }
+              }, 2000); // Update every 2 seconds
+              
+              // Store the interval ID on the component instance
+              // @ts-ignore - adding property to the component instance
+              window.__processingInterval = processingInterval;
+            }
           }
         }
       });
+      
+      // Clear the progress simulation interval if it exists
+      if (window.__processingInterval) {
+        clearInterval(window.__processingInterval);
+        // @ts-ignore - removing property
+        window.__processingInterval = null;
+      }
+      
+      // Set to 100% when processing is complete
+      setProgress(100);
       
       // Get the transcription from the response
       const segments = response.data.segments;
@@ -273,6 +322,13 @@ export function TranscriptionProcessor({
       toast.success('Transcription complete!', { id: 'processing' });
       
     } catch (error: any) {
+      // Clear the progress simulation interval if it exists
+      if (window.__processingInterval) {
+        clearInterval(window.__processingInterval);
+        // @ts-ignore - removing property
+        window.__processingInterval = null;
+      }
+      
       console.error('Error processing video:', error);
       toast.error(`Error: ${error.response?.data?.error || error.message || 'Failed to process video'}`, { id: 'processing' });
       setErrorMessage(error.response?.data?.error || error.message || 'Failed to process video');
@@ -358,11 +414,14 @@ export function TranscriptionProcessor({
           >
             {isProcessing ? (
               <>
-                <FiLoader className="animate-spin mr-2" />
-                Processing Video ({Math.round(progress)}%)
+                <div className="animate-spin h-4 w-4 border-2 border-foreground border-t-transparent rounded-full mr-2" />
+                Processing... {progress > 0 ? `(${Math.round(progress)}%)` : ''}
               </>
             ) : (
-              'Start Processing'
+              <>
+                <FiCpu className="mr-2" />
+                Start Processing
+              </>
             )}
           </Button>
         </div>

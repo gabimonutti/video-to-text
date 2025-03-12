@@ -8,7 +8,8 @@ import {
   FiMaximize, 
   FiSkipBack, 
   FiSkipForward,
-  FiType
+  FiType,
+  FiMinimize
 } from 'react-icons/fi';
 import { formatTime } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -51,8 +52,10 @@ export function VideoPlayer({
   const [playedSeconds, setPlayedSeconds] = useState(0);
   const [seeking, setSeeking] = useState(false);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const playerRef = useRef<ReactPlayer>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   
   // Use external currentTime if provided
   useEffect(() => {
@@ -60,6 +63,57 @@ export function VideoPlayer({
       playerRef.current?.seekTo(currentTime);
     }
   }, [currentTime, seeking, playedSeconds]);
+  
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only process keyboard shortcuts if video player is focused or in fullscreen
+      if (!videoContainerRef.current?.contains(document.activeElement) && !isFullscreen) return;
+      
+      switch (e.key.toLowerCase()) {
+        case ' ':
+        case 'k':
+          setPlaying(prev => !prev);
+          e.preventDefault();
+          break;
+        case 'arrowleft':
+        case 'j':
+          skipBackward();
+          e.preventDefault();
+          break;
+        case 'arrowright':
+        case 'l':
+          skipForward();
+          e.preventDefault();
+          break;
+        case 'm':
+          setMuted(prev => !prev);
+          e.preventDefault();
+          break;
+        case 'c':
+          setSubtitlesEnabled(prev => !prev);
+          e.preventDefault();
+          break;
+        case 'f':
+          toggleFullscreen();
+          e.preventDefault();
+          break;
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
+  
+  // Handle fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
   
   const handlePlayPause = () => {
     setPlaying(!playing);
@@ -108,17 +162,16 @@ export function VideoPlayer({
     playerRef.current?.seekTo(Math.min(duration, playedSeconds + 5));
   };
   
-  const handleFullscreen = () => {
-    const videoElement = document.querySelector('.react-player video');
-    if (videoElement) {
-      if ((videoElement as any).requestFullscreen) {
-        (videoElement as any).requestFullscreen();
-      } else if ((videoElement as any).webkitRequestFullscreen) {
-        (videoElement as any).webkitRequestFullscreen();
-      } else if ((videoElement as any).mozRequestFullScreen) {
-        (videoElement as any).mozRequestFullScreen();
-      } else if ((videoElement as any).msRequestFullscreen) {
-        (videoElement as any).msRequestFullscreen();
+  const toggleFullscreen = () => {
+    if (!videoContainerRef.current) return;
+    
+    if (!document.fullscreenElement) {
+      videoContainerRef.current.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
       }
     }
   };
@@ -128,7 +181,10 @@ export function VideoPlayer({
   };
   
   return (
-    <div className="video-player w-full max-w-3xl mx-auto rounded-lg overflow-hidden bg-card shadow-sm border">
+    <div 
+      ref={videoContainerRef}
+      className="video-player w-full max-w-3xl mx-auto rounded-lg overflow-hidden bg-card shadow-sm border"
+    >
       <div className="relative">
         <ReactPlayer
           ref={playerRef}
@@ -150,6 +206,21 @@ export function VideoPlayer({
             subtitleStyle={subtitleStyle}
             enabled={subtitlesEnabled}
           />
+        )}
+
+        {/* Fullscreen subtitle controls overlay */}
+        {isFullscreen && (
+          <div className="absolute top-4 right-4 bg-black/40 rounded-full p-2 transition-opacity opacity-0 hover:opacity-100">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={toggleSubtitles}
+              className={`text-white ${subtitlesEnabled ? 'bg-primary/30' : ''}`}
+              title={subtitlesEnabled ? "Hide subtitles" : "Show subtitles"}
+            >
+              <FiType className="h-5 w-5" />
+            </Button>
+          </div>
         )}
       </div>
       
@@ -182,7 +253,7 @@ export function VideoPlayer({
               variant="ghost" 
               size="icon" 
               onClick={skipBackward}
-              title="Skip backward 5s"
+              title="Skip backward 5s (Left Arrow / J)"
             >
               <FiSkipBack className="h-4 w-4" />
             </Button>
@@ -191,7 +262,7 @@ export function VideoPlayer({
               variant="ghost" 
               size="icon" 
               onClick={handlePlayPause}
-              title={playing ? "Pause" : "Play"}
+              title={playing ? "Pause (Space / K)" : "Play (Space / K)"}
             >
               {playing ? <FiPause className="h-4 w-4" /> : <FiPlay className="h-4 w-4" />}
             </Button>
@@ -200,7 +271,7 @@ export function VideoPlayer({
               variant="ghost" 
               size="icon" 
               onClick={skipForward}
-              title="Skip forward 5s"
+              title="Skip forward 5s (Right Arrow / L)"
             >
               <FiSkipForward className="h-4 w-4" />
             </Button>
@@ -211,7 +282,7 @@ export function VideoPlayer({
               variant="ghost" 
               size="icon" 
               onClick={toggleSubtitles}
-              title={subtitlesEnabled ? "Hide subtitles" : "Show subtitles"}
+              title={subtitlesEnabled ? "Hide subtitles (C)" : "Show subtitles (C)"}
               className={subtitlesEnabled ? 'text-primary' : ''}
             >
               <FiType className="h-4 w-4" />
@@ -221,7 +292,7 @@ export function VideoPlayer({
               variant="ghost" 
               size="icon" 
               onClick={handleToggleMute}
-              title={muted ? "Unmute" : "Mute"}
+              title={muted ? "Unmute (M)" : "Mute (M)"}
             >
               {muted ? <FiVolumeX className="h-4 w-4" /> : <FiVolume2 className="h-4 w-4" />}
             </Button>
@@ -239,10 +310,10 @@ export function VideoPlayer({
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={handleFullscreen}
-              title="Fullscreen"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
             >
-              <FiMaximize className="h-4 w-4" />
+              {isFullscreen ? <FiMinimize className="h-4 w-4" /> : <FiMaximize className="h-4 w-4" />}
             </Button>
           </div>
         </div>

@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { Button } from './ui/button';
-import { FiCpu, FiLoader, FiCheckCircle, FiAlertCircle, FiGlobe, FiClock, FiInfo } from 'react-icons/fi';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { FiCpu, FiLoader, FiCheckCircle, FiAlertCircle, FiGlobe, FiClock, FiInfo, FiWifi } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { TranscriptionSegment } from './TranscriptionDisplay';
 import { formatTime } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 // Language options for transcription and translation
 export const LANGUAGES = [
@@ -352,80 +353,146 @@ export function TranscriptionProcessor({
   };
   
   return (
-    <Card className="w-full max-w-3xl mx-auto mt-6">
-      <CardHeader>
-        <CardTitle>Process Video</CardTitle>
-        <CardDescription>
-          Generate transcription from your video
-          {videoFile && (
-            <span className="block mt-1 text-xs text-muted-foreground">
-              File: {videoFile.name} ({formatFileSize(videoFile.size)})
-            </span>
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {/* Removed language selection since Whisper auto-detects language */}
-          
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="w-full"
+    >
+      <Card className="w-full overflow-hidden border border-primary/10 shadow-md">
+        <CardHeader className="pb-3 bg-muted/30">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <FiCpu className="h-5 w-5 text-primary" />
+            Transcribe Video
+          </CardTitle>
+          <CardDescription>
+            Extract text from your video using AI
+            {videoFile && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-center mt-1 text-xs text-muted-foreground"
+              >
+                <span className="flex items-center gap-1">
+                  <FiInfo className="h-3 w-3" />
+                  {videoFile.name} ({formatFileSize(videoFile.size)})
+                </span>
+              </motion.div>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pb-3 pt-3 space-y-4">
           {/* Error message display */}
           {errorMessage && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 rounded-md text-sm text-red-700 dark:text-red-300 flex items-start space-x-2">
-              <FiAlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-500" />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-destructive/10 dark:bg-destructive/20 border border-destructive/30 p-3 rounded-lg text-sm text-destructive dark:text-destructive-foreground flex items-start space-x-2"
+            >
+              <FiAlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-destructive" />
               <div>
                 <p className="font-medium">Error occurred:</p>
                 <p className="mt-1">{errorMessage}</p>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {isProcessing && (
-            <div className="space-y-3 bg-muted/20 p-4 rounded-lg">
-              {/* Progress bar with detailed information */}
+            <motion.div 
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-3 bg-muted/20 rounded-lg p-3 border border-primary/10"
+            >
+              {/* Processing status with animated icon */}
+              <div className="flex items-center gap-2 mb-1">
+                {progress < 50 ? (
+                  <div className="flex items-center gap-2">
+                    <FiWifi className="h-4 w-4 text-primary animate-pulse" />
+                    <span className="text-sm font-medium">Uploading video...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <motion.div
+                      animate={{ 
+                        rotate: [0, 180, 360],
+                      }}
+                      transition={{ 
+                        repeat: Infinity,
+                        duration: 1.5,
+                        ease: "linear"
+                      }}
+                    >
+                      <FiCpu className="h-4 w-4 text-primary" />
+                    </motion.div>
+                    <span className="text-sm font-medium">Processing with AI...</span>
+                  </div>
+                )}
+              </div>
+              
+              {/* Progress bar with gradient */}
               <div className="w-full">
                 <div className="flex justify-between text-xs mb-1">
                   <span>
-                    Processing Video
+                    {progress < 50 ? 'Uploading' : 'Processing'}
                   </span>
                   <span className="font-medium">
                     {Math.round(progress)}%
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                    className="bg-primary h-2.5 rounded-full transition-all duration-300" 
-                    style={{ width: `${progress}%` }}
-                  ></div>
+                <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ type: "spring", damping: 15, stiffness: 50 }}
+                    className="h-full rounded-full bg-gradient-to-r from-primary/60 via-primary to-primary/80"
+                  />
                 </div>
               </div>
-            </div>
+              
+              <div className="text-xs text-muted-foreground italic px-1">
+                {progress < 50 
+                  ? "Uploading your video to the server..." 
+                  : "OpenAI Whisper is processing your audio. This may take a few minutes..."}
+              </div>
+            </motion.div>
           )}
           
-          <div className="flex justify-center items-center">
-            <p className="text-sm text-muted-foreground">
-              OpenAI Whisper will automatically detect the language in your video
-            </p>
+          <div className="flex flex-col space-y-2 items-center text-center">
+            <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+              <FiGlobe className="h-4 w-4" />
+              <span>Languages are automatically detected by OpenAI Whisper</span>
+            </div>
+            
+            <Button
+              onClick={handleProcessVideo}
+              disabled={!videoFile || isProcessing}
+              className="w-full mt-2 relative overflow-hidden group"
+              size="lg"
+            >
+              {isProcessing ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin h-4 w-4 border-2 border-background border-t-transparent rounded-full" />
+                  <span>Processing... {progress > 0 ? `(${Math.round(progress)}%)` : ''}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 relative z-10">
+                  <FiCpu className="h-4 w-4" />
+                  <span>Start Transcription</span>
+                </div>
+              )}
+              
+              {!isProcessing && (
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/80 via-primary to-primary/80 opacity-90 group-hover:scale-110 transition-transform duration-500"></div>
+              )}
+            </Button>
           </div>
-          
-          <Button
-            onClick={handleProcessVideo}
-            disabled={!videoFile || isProcessing}
-            className="w-full"
-          >
-            {isProcessing ? (
-              <>
-                <div className="animate-spin h-4 w-4 border-2 border-foreground border-t-transparent rounded-full mr-2" />
-                Processing... {progress > 0 ? `(${Math.round(progress)}%)` : ''}
-              </>
-            ) : (
-              <>
-                <FiCpu className="mr-2" />
-                Start Processing
-              </>
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+        <CardFooter className="flex justify-center py-3 border-t border-border/30 bg-muted/20">
+          <p className="text-xs text-muted-foreground">
+            Powered by OpenAI Whisper • High quality transcription
+          </p>
+        </CardFooter>
+      </Card>
+    </motion.div>
   );
 } 

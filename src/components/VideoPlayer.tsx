@@ -6,18 +6,20 @@ import {
   FiVolume2, 
   FiVolumeX, 
   FiMaximize, 
-  FiSkipBack, 
+  FiMinimize, 
+  FiDownload,
+  FiSkipBack,
   FiSkipForward,
-  FiType,
-  FiMinimize,
-  FiDownload
+  FiType
 } from 'react-icons/fi';
 import { formatTime } from '@/lib/utils';
-import { Button } from './ui/button';
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 import { VideoSubtitles } from './VideoSubtitles';
 import { TranscriptionSegment } from './TranscriptionDisplay';
 import { SubtitleStyle } from './SubtitleControls';
 import toast from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -65,9 +67,12 @@ export function VideoPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isProcessingDownload, setIsProcessingDownload] = useState(false);
   const [localSubtitleStyle, setLocalSubtitleStyle] = useState(subtitleStyle);
+  const [isControlsVisible, setIsControlsVisible] = useState(true);
+  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null);
   
   const playerRef = useRef<ReactPlayer>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const playerWrapperRef = useRef<HTMLDivElement>(null);
   
   // Update local subtitle style when prop changes
   useEffect(() => {
@@ -132,12 +137,55 @@ export function VideoPlayer({
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
   
+  // Auto-hide controls after inactivity
+  useEffect(() => {
+    const handleMouseMove = () => {
+      setIsControlsVisible(true);
+      
+      if (controlsTimeout) {
+        clearTimeout(controlsTimeout);
+      }
+      
+      // Hide controls after 3 seconds of inactivity when playing
+      if (playing) {
+        const timeout = setTimeout(() => {
+          setIsControlsVisible(false);
+        }, 3000);
+        
+        setControlsTimeout(timeout);
+      }
+    };
+    
+    if (playerWrapperRef.current) {
+      playerWrapperRef.current.addEventListener('mousemove', handleMouseMove);
+      playerWrapperRef.current.addEventListener('mouseleave', () => {
+        if (playing && !seeking) {
+          setIsControlsVisible(false);
+        }
+      });
+      playerWrapperRef.current.addEventListener('mouseenter', () => {
+        setIsControlsVisible(true);
+      });
+    }
+    
+    return () => {
+      if (playerWrapperRef.current) {
+        playerWrapperRef.current.removeEventListener('mousemove', handleMouseMove);
+      }
+      
+      if (controlsTimeout) {
+        clearTimeout(controlsTimeout);
+      }
+    };
+  }, [playing, controlsTimeout, seeking]);
+  
   const handlePlayPause = () => {
     setPlaying(!playing);
+    setIsControlsVisible(true);
   };
   
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setVolume(parseFloat(e.target.value));
+  const handleVolumeChange = (values: number[]) => {
+    setVolume(values[0]);
   };
   
   const handleToggleMute = () => {
@@ -156,15 +204,29 @@ export function VideoPlayer({
   
   const handleSeekMouseDown = () => {
     setSeeking(true);
+    setIsControlsVisible(true);
+    
+    if (controlsTimeout) {
+      clearTimeout(controlsTimeout);
+    }
   };
   
-  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPlayed(parseFloat(e.target.value));
+  const handleSeekChange = (values: number[]) => {
+    setPlayed(values[0]);
   };
   
-  const handleSeekMouseUp = (e: React.MouseEvent<HTMLInputElement>) => {
+  const handleSeekMouseUp = () => {
     setSeeking(false);
-    playerRef.current?.seekTo(parseFloat((e.target as HTMLInputElement).value));
+    playerRef.current?.seekTo(played);
+    
+    if (playing) {
+      // Set timeout to hide controls after 3 seconds
+      const timeout = setTimeout(() => {
+        setIsControlsVisible(false);
+      }, 3000);
+      
+      setControlsTimeout(timeout);
+    }
   };
   
   const handleDuration = (duration: number) => {
@@ -173,10 +235,42 @@ export function VideoPlayer({
   
   const skipBackward = () => {
     playerRef.current?.seekTo(Math.max(0, playedSeconds - 5));
+    
+    // Show controls when skipping
+    setIsControlsVisible(true);
+    
+    if (controlsTimeout) {
+      clearTimeout(controlsTimeout);
+    }
+    
+    if (playing) {
+      // Set timeout to hide controls after 3 seconds
+      const timeout = setTimeout(() => {
+        setIsControlsVisible(false);
+      }, 3000);
+      
+      setControlsTimeout(timeout);
+    }
   };
   
   const skipForward = () => {
     playerRef.current?.seekTo(Math.min(duration, playedSeconds + 5));
+    
+    // Show controls when skipping
+    setIsControlsVisible(true);
+    
+    if (controlsTimeout) {
+      clearTimeout(controlsTimeout);
+    }
+    
+    if (playing) {
+      // Set timeout to hide controls after 3 seconds
+      const timeout = setTimeout(() => {
+        setIsControlsVisible(false);
+      }, 3000);
+      
+      setControlsTimeout(timeout);
+    }
   };
   
   const toggleFullscreen = () => {
@@ -243,8 +337,8 @@ export function VideoPlayer({
       document.body.removeChild(link);
       
       toast.success("Video with captions downloaded successfully", { id: "download-video" });
-    } catch (error: Error | unknown) {
-      console.error("Error downloading video with captions:", error);
+    } catch (error: unknown) {
+      console.error('Error downloading video with captions:', error);
       
       if (error instanceof Error && error.message.includes("not implemented")) {
         toast.error(
@@ -283,9 +377,13 @@ export function VideoPlayer({
   return (
     <div 
       ref={videoContainerRef}
-      className="video-player w-full max-w-3xl mx-auto rounded-lg overflow-hidden bg-card shadow-sm border"
+      className="video-player w-full mx-auto rounded-xl overflow-hidden bg-black relative"
     >
-      <div className="relative">
+      <div 
+        ref={playerWrapperRef}
+        className="relative group cursor-pointer"
+        onClick={handlePlayPause}
+      >
         <ReactPlayer
           ref={playerRef}
           url={videoUrl}
@@ -296,9 +394,10 @@ export function VideoPlayer({
           muted={muted}
           onProgress={handleProgress}
           onDuration={handleDuration}
-          className="react-player"
+          className="react-player aspect-video"
           progressInterval={100}
         />
+        
         {subtitlesEnabled && (
           <VideoSubtitles
             segments={segments}
@@ -309,13 +408,34 @@ export function VideoPlayer({
           />
         )}
 
+        {/* Play/Pause overlay button */}
+        <AnimatePresence>
+          {!playing && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 flex items-center justify-center"
+              onClick={handlePlayPause}
+            >
+              <div className="bg-black/30 backdrop-blur-sm rounded-full p-5 text-white">
+                <FiPlay className="h-8 w-8" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Fullscreen subtitle controls overlay */}
         {isFullscreen && (
           <div className="absolute top-4 right-4 bg-black/40 rounded-full p-2 transition-opacity opacity-0 hover:opacity-100">
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={toggleSubtitles}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSubtitles();
+              }}
               className={`text-white ${subtitlesEnabled ? 'bg-primary/30' : ''}`}
               title={subtitlesEnabled ? "Hide subtitles" : "Show subtitles"}
             >
@@ -323,127 +443,165 @@ export function VideoPlayer({
             </Button>
           </div>
         )}
-      </div>
-      
-      <div className="p-4">
-        {/* Progress bar */}
-        <div className="flex items-center mb-2">
-          <span className="text-xs mr-2 w-12 text-right">
-            {formatTime(playedSeconds)}
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={0.999999}
-            step="any"
-            value={played}
-            onMouseDown={handleSeekMouseDown}
-            onChange={handleSeekChange}
-            onMouseUp={handleSeekMouseUp}
-            className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-          />
-          <span className="text-xs ml-2 w-12">
-            {formatTime(duration)}
-          </span>
-        </div>
         
-        {/* Controls */}
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={skipBackward}
-              title="Skip backward 5s (Left Arrow / J)"
+        {/* Video Controls */}
+        <AnimatePresence>
+          {isControlsVisible && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-16"
+              onClick={(e) => e.stopPropagation()}
             >
-              <FiSkipBack className="h-4 w-4" />
-            </Button>
-            
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handlePlayPause}
-              title={playing ? "Pause (Space / K)" : "Play (Space / K)"}
-            >
-              {playing ? <FiPause className="h-4 w-4" /> : <FiPlay className="h-4 w-4" />}
-            </Button>
-            
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={skipForward}
-              title="Skip forward 5s (Right Arrow / L)"
-            >
-              <FiSkipForward className="h-4 w-4" />
-            </Button>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleSubtitles}
-              title={subtitlesEnabled ? "Hide subtitles (C)" : "Show subtitles (C)"}
-              className={subtitlesEnabled ? 'text-primary' : ''}
-            >
-              <FiType className="h-4 w-4" />
-            </Button>
-            
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handleToggleMute}
-              title={muted ? "Unmute (M)" : "Mute (M)"}
-            >
-              {muted ? <FiVolumeX className="h-4 w-4" /> : <FiVolume2 className="h-4 w-4" />}
-            </Button>
-            
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step="any"
-              value={volume}
-              onChange={handleVolumeChange}
-              className="w-24 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-            
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleFullscreen}
-              title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
-            >
-              {isFullscreen ? <FiMinimize className="h-4 w-4" /> : <FiMaximize className="h-4 w-4" />}
-            </Button>
-          </div>
-        </div>
-
-        {/* Download button */}
-        {segments.length > 0 && videoFile && (
-          <div className="mt-4 flex justify-center">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2 relative"
-              onClick={downloadVideoWithCaptions}
-              disabled={isProcessingDownload}
-            >
-              {isProcessingDownload ? (
-                <>
-                  <div className="animate-spin h-4 w-4 border-2 border-foreground border-t-transparent rounded-full mr-2" />
-                  Processing Video...
-                </>
-              ) : (
-                <>
-                  <FiDownload className="h-4 w-4" />
-                  Download Video with Captions
-                </>
-              )}
-            </Button>
-          </div>
-        )}
+              {/* Progress bar */}
+              <div className="flex items-center mb-3">
+                <span className="text-xs mr-2 w-12 text-center text-white/90 bg-black/30 py-1 px-1 rounded">
+                  {formatTime(playedSeconds)}
+                </span>
+                <div className="flex-1 mx-1">
+                  <Slider
+                    value={[played]}
+                    min={0}
+                    max={0.999999}
+                    step={0.0001}
+                    onValueChange={handleSeekChange}
+                    onValueCommit={handleSeekMouseUp}
+                    onPointerDown={handleSeekMouseDown}
+                    className="cursor-pointer"
+                  />
+                </div>
+                <span className="text-xs ml-2 w-12 text-center text-white/90 bg-black/30 py-1 px-1 rounded">
+                  {formatTime(duration)}
+                </span>
+              </div>
+              
+              {/* Controls */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center space-x-1">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      skipBackward();
+                    }}
+                    className="text-white hover:bg-white/10"
+                    title="Skip backward 5s (Left Arrow / J)"
+                  >
+                    <FiSkipBack className="h-4 w-4" />
+                  </Button>
+                  
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePlayPause();
+                    }}
+                    className="text-white hover:bg-white/10"
+                    title={playing ? "Pause (Space / K)" : "Play (Space / K)"}
+                  >
+                    {playing ? <FiPause className="h-5 w-5" /> : <FiPlay className="h-5 w-5" />}
+                  </Button>
+                  
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      skipForward();
+                    }}
+                    className="text-white hover:bg-white/10"
+                    title="Skip forward 5s (Right Arrow / L)"
+                  >
+                    <FiSkipForward className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSubtitles();
+                    }}
+                    className={`text-white hover:bg-white/10 ${subtitlesEnabled ? 'bg-white/20' : ''}`}
+                    title={subtitlesEnabled ? "Hide subtitles (C)" : "Show subtitles (C)"}
+                  >
+                    <FiType className="h-4 w-4" />
+                  </Button>
+                  
+                  <div className="flex items-center space-x-1 mr-1 bg-black/30 rounded-full px-2 py-1">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleMute();
+                      }}
+                      className="text-white h-7 w-7 hover:bg-white/10"
+                      title={muted ? "Unmute (M)" : "Mute (M)"}
+                    >
+                      {muted ? <FiVolumeX className="h-3 w-3" /> : <FiVolume2 className="h-3 w-3" />}
+                    </Button>
+                    
+                    <Slider
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={[volume]}
+                      onValueChange={handleVolumeChange}
+                      className="w-16 cursor-pointer"
+                    />
+                  </div>
+                  
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFullscreen();
+                    }}
+                    className="text-white hover:bg-white/10"
+                    title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+                  >
+                    {isFullscreen ? <FiMinimize className="h-4 w-4" /> : <FiMaximize className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* Download button */}
+      {segments.length > 0 && videoFile && (
+        <div className="p-3 flex justify-end bg-muted/30 border-t border-border/10">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2 relative group overflow-hidden"
+            onClick={downloadVideoWithCaptions}
+            disabled={isProcessingDownload}
+          >
+            {isProcessingDownload ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                <span>Processing...</span>
+              </>
+            ) : (
+              <>
+                <FiDownload className="h-4 w-4 text-primary group-hover:scale-110 transition-transform duration-300" />
+                <span>Download with Captions</span>
+                <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-primary group-hover:w-full transition-all duration-300"></div>
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 } 
